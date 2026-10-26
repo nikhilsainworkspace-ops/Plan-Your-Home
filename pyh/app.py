@@ -207,10 +207,18 @@ class Application:
         production_problems = config.validate_production() if hasattr(config, "validate_production") else []
         if production_problems:
             raise RuntimeError("Production configuration is invalid: " + " ".join(production_problems))
-        self.database_path = database_path or config.DATABASE_PATH
         self.storage_dir = Path(storage_dir or config.STORAGE_DIR)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
-        Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
+        remote_database = bool(
+            database_path is None
+            and getattr(config, "TURSO_DATABASE_URL", "")
+            and getattr(config, "TURSO_AUTH_TOKEN", "")
+        )
+        # None tells pyh.db to use the configured shared Turso database. An
+        # explicit database_path always opts into local SQLite (especially tests).
+        self.database_path = database_path if database_path is not None else (None if remote_database else config.DATABASE_PATH)
+        if self.database_path is not None:
+            Path(self.database_path).parent.mkdir(parents=True, exist_ok=True)
         if initialize:
             init_db(self.database_path)
         self.templates = Environment(
@@ -399,8 +407,8 @@ class Application:
         token = random_token()
         expires = dt_text(utcnow() + timedelta(hours=self.config.DEMO_SESSION_HOURS))
         with self.conn() as con:
-            cur = con.execute("INSERT INTO demo_sessions(token_hash,expires_at) VALUES(?,?)", (token_digest(token), expires))
-            demo_id = cur.lastrowid
+            cur = con.execute("INSERT INTO demo_sessions(token_hash,expires_at) VALUES(?,?) RETURNING id", (token_digest(token), expires))
+            demo_id = cur.fetchone()["id"]
         demo = {"id": demo_id, "token": token, "expires_at": expires}
         cookie_headers.append(self._cookie("pyh_demo", token, self.config.DEMO_SESSION_HOURS * 3600))
         self._seed_demo(demo_id)
@@ -417,8 +425,8 @@ class Application:
         with transaction(self.database_path) as con:
             cur = con.execute("""INSERT INTO projects(owner_id,demo_session_id,name,project_type,description,location,
                 plot_length_m,plot_width_m,floors,built_area_m2,budget,currency,status,notes)
-                VALUES(NULL,?,'Willow Courtyard Home','new_home','Illustrative planning project for exploring the workspace.','Sample location',24,18,2,210,5200000,'INR','in_progress','Synthetic demo data only. Rates and figures are examples, not verified local market prices.')""", (demo_id,))
-            pid = cur.lastrowid
+                VALUES(NULL,?,'Willow Courtyard Home','new_home','Illustrative planning project for exploring the workspace.','Sample location',24,18,2,210,5200000,'INR','in_progress','Synthetic demo data only. Rates and figures are examples, not verified local market prices.') RETURNING id""", (demo_id,))
+            pid = cur.fetchone()["id"]
             rooms = [
                 ("Living room", "living", 5.2, 4.2, 0.5, 0.5, 1, "#DDEAE4"),
                 ("Kitchen", "kitchen", 3.4, 3.2, 6.1, 0.5, 1, "#F4E8D4"),
@@ -500,8 +508,8 @@ class Application:
             currency = "INR"
         with transaction(self.database_path) as con:
             cur = con.execute("""INSERT INTO projects(owner_id,demo_session_id,name,project_type,description,location,plot_length_m,plot_width_m,floors,built_area_m2,budget,currency,status,notes,start_date,target_date)
-                VALUES(?,NULL,?,?,?,?,?,?,?,?,?,?,'planning',?,?,?)""", (user["id"], name, project_type, (values.get("description") or "")[:2000], (values.get("location") or "")[:160], plot_length, plot_width, floors, built_area, budget, currency, (values.get("notes") or "")[:4000], start_date, target_date))
-            pid = cur.lastrowid
+                VALUES(?,NULL,?,?,?,?,?,?,?,?,?,?,'planning',?,?,?) RETURNING id""", (user["id"], name, project_type, (values.get("description") or "")[:2000], (values.get("location") or "")[:160], plot_length, plot_width, floors, built_area, budget, currency, (values.get("notes") or "")[:4000], start_date, target_date))
+            pid = cur.fetchone()["id"]
             con.execute("INSERT INTO estimates(project_id) VALUES(?)", (pid,))
             con.executemany("INSERT INTO estimate_lines(project_id,category,pct,notes) VALUES(?,?,?,?)", [(pid, category, pct, "Default planning allocation; edit based on quotations.") for category, pct in DEFAULT_CATEGORIES])
             starter_tasks = [
@@ -673,8 +681,8 @@ class Application:
                             trial_days = self.config.TRIAL_DAYS
                         start = utcnow()
                         end = start + timedelta(days=trial_days)
-                        cur = con.execute("INSERT INTO users(email,full_name,password_hash,role,units,trial_started_at,trial_ends_at,trial_status) VALUES(?,?,?,?,?,?,?,'trialing')", (email, full_name, password_hash, role, units, dt_text(start), dt_text(end)))
-                        uid = cur.lastrowid
+                        cur = con.execute("INSERT INTO users(email,full_name,password_hash,role,units,trial_started_at,trial_ends_at,trial_status) VALUES(?,?,?,?,?,?,?,'trialing') RETURNING id", (email, full_name, password_hash, role, units, dt_text(start), dt_text(end)))
+                        uid = cur.fetchone()["id"]
                         con.execute("INSERT INTO audit_log(actor_user_id,action,subject_type,subject_id,details) VALUES(?,?,?,?,?)", (uid, "account.created", "user", str(uid), "New account registered; trial started"))
                 except sqlite3.IntegrityError:
                     return self._render("signup.html", req, error="An account with that email already exists. Please sign in instead.")
@@ -866,8 +874,8 @@ class Application:
                 self._require_write(user)
                 with transaction(self.database_path) as con:
                     cur = con.execute("""INSERT INTO projects(owner_id,demo_session_id,name,project_type,description,location,plot_length_m,plot_width_m,floors,built_area_m2,budget,currency,status,notes,start_date,target_date)
-                        SELECT owner_id,NULL,substr(name||' (copy)',1,120),project_type,description,location,plot_length_m,plot_width_m,floors,built_area_m2,budget,currency,'planning',notes,start_date,target_date FROM projects WHERE id=? AND owner_id=?""", (project_id,user["id"]))
-                    new_id = cur.lastrowid
+                        SELECT owner_id,NULL,substr(name||' (copy)',1,120),project_type,description,location,plot_length_m,plot_width_m,floors,built_area_m2,budget,currency,'planning',notes,start_date,target_date FROM projects WHERE id=? AND owner_id=? RETURNING id""", (project_id,user["id"]))
+                    new_id = cur.fetchone()["id"]
                     con.execute("INSERT INTO estimates(project_id,cost_per_m2,contingency_pct,finish_level,assumptions) SELECT ?,cost_per_m2,contingency_pct,finish_level,assumptions FROM estimates WHERE project_id=?", (new_id, project_id))
                     con.execute("INSERT INTO estimate_lines(project_id,category,pct,notes) SELECT ?,category,pct,notes FROM estimate_lines WHERE project_id=?", (new_id, project_id))
                     con.execute("INSERT INTO rooms(project_id,name,room_type,width_m,depth_m,x_m,y_m,floor_no,color,doors,windows) SELECT ?,name,room_type,width_m,depth_m,x_m,y_m,floor_no,color,doors,windows FROM rooms WHERE project_id=?", (new_id, project_id))

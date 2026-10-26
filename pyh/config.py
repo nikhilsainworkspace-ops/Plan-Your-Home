@@ -44,6 +44,9 @@ class Config:
     APP_URL = os.getenv("APP_URL", "http://127.0.0.1:8000").rstrip("/")
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-this-secret-key-before-production")
     DATABASE_PATH = os.getenv("DATABASE_PATH", str(ROOT / "instance" / "plan-your-home.sqlite3"))
+    # Turso is an optional shared SQLite-compatible database for serverless deployments.
+    TURSO_DATABASE_URL = os.getenv("TURSO_DATABASE_URL", "").strip()
+    TURSO_AUTH_TOKEN = os.getenv("TURSO_AUTH_TOKEN", "").strip()
     STORAGE_DIR = os.getenv("STORAGE_DIR", str(ROOT / "instance" / "uploads"))
     PUBLIC_DEMO_ENABLED = env_bool("PUBLIC_DEMO_ENABLED", True)
     DEMO_SESSION_HOURS = max(1, int(os.getenv("DEMO_SESSION_HOURS", "8")))
@@ -79,6 +82,12 @@ class Config:
                 problems.append("APP_URL must use HTTPS in production.")
             if not cls.COOKIE_SECURE:
                 problems.append("COOKIE_SECURE must be enabled in production.")
+            has_turso_url = bool(getattr(cls, "TURSO_DATABASE_URL", ""))
+            has_turso_token = bool(getattr(cls, "TURSO_AUTH_TOKEN", ""))
+            if has_turso_url != has_turso_token:
+                problems.append("TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be configured together.")
+            if os.getenv("VERCEL", "").strip() == "1" and not (has_turso_url and has_turso_token):
+                problems.append("Vercel production requires TURSO_DATABASE_URL and TURSO_AUTH_TOKEN; local /tmp SQLite is not durable across function instances.")
             if not Path(cls.DATABASE_PATH).is_absolute():
                 problems.append("DATABASE_PATH must be an absolute path in production.")
             payment_requested = bool(cls.RAZORPAY_KEY_ID or cls.RAZORPAY_KEY_SECRET or cls.RAZORPAY_PLAN_STARTER or cls.RAZORPAY_PLAN_PRO or cls.RAZORPAY_PLAN_TEAM)

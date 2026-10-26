@@ -8,7 +8,9 @@
 - `APP_NAME`: product/site name.
 - `APP_URL`: externally visible base URL; HTTPS required in production.
 - `SECRET_KEY`: unique server-only secret, at least 32 characters in production.
-- `DATABASE_PATH`: SQLite file path; must be absolute in production.
+- `DATABASE_PATH`: local SQLite file path; must be absolute on a persistent-disk deployment. On Vercel, configure the Turso variables below instead.
+- `TURSO_DATABASE_URL`: optional shared Turso/libSQL URL (for example, `libsql://...`); required on Vercel when `APP_ENV=production`.
+- `TURSO_AUTH_TOKEN`: database access token paired with `TURSO_DATABASE_URL`; keep secret.
 - `STORAGE_DIR`: private, writable directory for uploaded documents.
 - `PUBLIC_DEMO_ENABLED`: enable/disable public demo, default `true`.
 - `DEMO_SESSION_HOURS`: demo cookie/session lifetime, default `8`.
@@ -18,6 +20,8 @@
 - `COOKIE_SECURE`: enable `Secure` cookies; production requires `true`.
 - `TRUST_PROXY`: only enable if deployed behind a trusted proxy whose headers are sanitized.
 - `SUPPORT_EMAIL`: optional support address used for configured outbound contact handling.
+
+For Vercel/serverless deployments, the shared Turso database keeps accounts, sessions, and projects consistent between function instances. Do not use SQLite under `/tmp` for real users; it is temporary. Document uploads still require persistent/shared object storage on Vercel.
 
 ## Optional SMTP delivery
 

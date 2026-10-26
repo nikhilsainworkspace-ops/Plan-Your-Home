@@ -4,9 +4,9 @@ Local: ``python wsgi.py``
 Production hosts: import ``app`` or ``application`` from this module.
 
 Vercel Functions have a read-only project filesystem and a writable /tmp area.
-The current version of Plan Your Home uses SQLite and local uploads, so those
-paths must be moved to /tmp for the app to start in a Vercel Function. Note that
-/tmp is ephemeral and is not suitable for durable production user data.
+A shared Turso database is required for durable sessions and project data. The
+local upload directory still points at /tmp on Vercel and is temporary; use
+persistent/shared object storage before accepting real customer uploads.
 """
 from __future__ import annotations
 

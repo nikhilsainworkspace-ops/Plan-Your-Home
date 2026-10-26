@@ -6,7 +6,7 @@ Use Python 3.11+, install `requirements.lock`, copy `.env.example` to `.env`, ru
 
 ## Linux/container host
 
-Use a persistent volume for the SQLite database and the private upload directory. Set `HOST=0.0.0.0` only behind a trusted host firewall/reverse proxy, or use the provided Gunicorn `Procfile` with the configured platform port. Install dependencies from `requirements.lock`. Do not expose the built-in development server directly to the public internet.
+Use a persistent volume for local SQLite and the private upload directory. For Vercel/serverless, configure `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` to use the shared Turso/libSQL database for accounts, sessions and projects. Vercel's `/tmp` directory is temporary, so document uploads still need shared private object storage before production use. Set `HOST=0.0.0.0` only behind a trusted host firewall/reverse proxy, or use the provided Gunicorn `Procfile` with the configured platform port. Install dependencies from `requirements.lock`. Do not expose the built-in development server directly to the public internet.
 
 Required production settings are:
 
@@ -29,7 +29,7 @@ Create the plan IDs and display-price strings in the Razorpay merchant account a
 
 ## Database and backups
 
-`python manage.py migrate` applies the included SQLite schema. Keep SQLite and file storage private. Back up the database and uploads directory in a consistent snapshot and test restoration regularly. SQLite is for a single-instance deployment. For concurrent multi-instance deployments, plan a migration to PostgreSQL and private shared object storage.
+`python manage.py migrate` applies the included SQLite schema. Keep SQLite and file storage private. Back up the database and uploads directory in a consistent snapshot and test restoration regularly. Local SQLite on disk is for a single-instance deployment. The optional Turso driver provides a SQLite-compatible shared remote database for Vercel serverless instances; verify provider quotas, latency, backups and production behavior. Use private shared object storage for uploads on serverless platforms.
 
 ## Operational smoke check
 

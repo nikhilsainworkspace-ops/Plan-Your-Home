@@ -61,15 +61,15 @@ Enter and confirm the administrator password only if you are creating a new acco
 
 ## Production deployment outline
 
-1. Deploy on a supported Linux host with persistent private disk storage.
-2. Install dependencies from `requirements.lock` and set the environment variables listed at the end of this document.
-3. Set `APP_ENV=production`, an absolute `DATABASE_PATH`, a unique `SECRET_KEY`, an HTTPS `APP_URL`, and `COOKIE_SECURE=true`.
-4. Run `python manage.py migrate` and provision the first administrator.
-5. Configure HTTPS at the reverse proxy/platform, restrict filesystem access, back up both the SQLite database and the private upload directory, and set a real SMTP sender if password resets/notifications are needed.
+1. For a single-instance Linux host, provide persistent private disk storage; for Vercel/serverless, create a shared Turso/libSQL database and configure `TURSO_DATABASE_URL` plus `TURSO_AUTH_TOKEN`.
+2. Install dependencies from `requirements.lock` and set the environment variables listed in `docs/ENVIRONMENT.md`.
+3. Set `APP_ENV=production`, a unique `SECRET_KEY`, an HTTPS `APP_URL`, and `COOKIE_SECURE=true`. Use `DATABASE_PATH` only with persistent local disk; Vercel production requires Turso.
+4. Run `python manage.py migrate` against the configured database and provision the first administrator.
+5. Configure persistent/shared private object storage for uploads, restrict storage access, maintain backups, and set a real SMTP sender if password resets/notifications are needed.
 6. Configure Razorpay using test credentials first, create plan IDs in the merchant account, set the matching display prices, register the webhook endpoint `/webhooks/razorpay`, and use the **webhook secret** (not the API secret) in `RAZORPAY_WEBHOOK_SECRET`.
 7. Verify registration, reset email, trial expiry, payment lifecycle webhooks, backups/restores, access-control behavior, and all legal/price information before exposing the site to real users.
 
-The included `Procfile` uses Gunicorn. `python wsgi.py` uses Python's standard WSGI server and is intended for local development, not public production traffic. SQLite is appropriate for a modest single-instance installation with a persistent disk; a horizontally scaled deployment should use a server database and a shared private object store before production rollout.
+The included `Procfile` uses Gunicorn. `python wsgi.py` uses Python's standard WSGI server and is intended for local development, not public production traffic. Local SQLite is suitable for a modest single-instance installation with persistent disk. Vercel deployments can use the optional Turso-compatible shared database backend for account/session/project persistence; uploaded documents still need shared private object storage because Vercel `/tmp` is ephemeral.
 
 ## What is not represented as complete
 
@@ -87,7 +87,9 @@ Copy `.env.example` to `.env` for local development. For production, set these v
 | `APP_NAME` | Optional site/product label. |
 | `APP_URL` | Required in production; public HTTPS base URL. |
 | `SECRET_KEY` | Required in production; unique random secret of at least 32 characters. |
-| `DATABASE_PATH` | Required persistent SQLite file path; absolute path in production. |
+| `DATABASE_PATH` | Required persistent SQLite file path on single-instance hosts; absolute path in production. Not a durable Vercel database. |
+| `TURSO_DATABASE_URL` | Required on Vercel production; shared Turso/libSQL database URL. |
+| `TURSO_AUTH_TOKEN` | Required with `TURSO_DATABASE_URL`; server-side database token. |
 | `STORAGE_DIR` | Required private writable document-storage directory. |
 | `PUBLIC_DEMO_ENABLED` | Optional; controls public demo, default `true`. |
 | `DEMO_SESSION_HOURS` | Optional demo lifetime, default `8`. |

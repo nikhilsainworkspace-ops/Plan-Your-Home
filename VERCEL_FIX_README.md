@@ -1,44 +1,43 @@
-# Vercel startup fix — apply this patch to the existing GitHub repository
+# Vercel sign-in/sign-up fix
 
-This patch contains only the changed/new files:
+This patch fixes the underlying session-storage mismatch: CSRF tokens, sessions, user accounts and projects were being stored in SQLite under Vercel's temporary `/tmp` directory. Serverless function instances do not share that temporary database, so a form could be rendered with one session and submitted to another instance where that session did not exist.
 
-- `wsgi.py` — exports a Vercel-compatible WSGI object and redirects SQLite/uploads to `/tmp` in Vercel Functions.
-- `pyproject.toml` — declares the exact Vercel entrypoint (`wsgi:app`).
+## Files in this patch
 
-## Apply it
+Replace the files in this ZIP at the same paths in the root of the existing GitHub repository. Keep your other project files unchanged. The patch adds a Turso-compatible shared database backend while keeping local development on standard SQLite.
 
-Upload/replace these files in the **root of the existing GitHub repository**, keeping their paths exactly as shown. Commit/push to `main`; Vercel should create a new deployment automatically. Do not upload the ZIP as a nested folder.
+## Required Vercel settings
 
-## Environment variables in Vercel
-
-In **Project → Settings → Environment Variables**, set these for Production (and Preview if you test Preview deployments):
+Before redeploying, create a Turso/libSQL database and generate an authentication token in the provider dashboard. Add these environment variables in **Vercel → Project → Settings → Environment Variables** for Production (and Preview if you test Preview deployments):
 
 ```env
 APP_ENV=production
 APP_URL=https://planyourhomes.vercel.app
-SECRET_KEY=<a unique random value of at least 32 characters>
+SECRET_KEY=<unique random secret of at least 32 characters>
 COOKIE_SECURE=true
+TURSO_DATABASE_URL=libsql://<your-database-host>
+TURSO_AUTH_TOKEN=<your database auth token>
 ```
 
-Generate the secret locally with:
+Generate `SECRET_KEY` on your own computer with:
 
 ```bash
 python -c "import secrets; print(secrets.token_urlsafe(48))"
 ```
 
-Redeploy after adding/changing environment variables. Do not commit the real secret to GitHub.
+Do not commit real secrets to GitHub or paste them into support chats. The database URL and token must both be set; the app will reject a production Vercel startup without them rather than silently use temporary local storage. The schema is created automatically when the app first starts against the shared database.
 
-The app now chooses `/tmp/plan-your-home/plan-your-home.sqlite3` and `/tmp/plan-your-home/uploads` automatically when `VERCEL=1`; any old `DATABASE_PATH=/var/data/...` or `STORAGE_DIR=/var/data/...` values are intentionally ignored on Vercel because Vercel Functions do not provide that persistent disk by default.
+`DATABASE_PATH` is still used for local SQLite development and for non-Vercel deployments with persistent disks. Vercel's temporary `/tmp` database is no longer used when the Turso settings are present.
 
-## Verify after redeployment
+## After redeployment
 
-Open these URLs:
+1. Open `https://planyourhomes.vercel.app/healthz`; expect JSON with `"status":"ok"` and `"database":"ok"`.
+2. Open `/signup` in a fresh private/incognito browser window, create a test account, and verify the onboarding/dashboard loads.
+3. Sign out, sign in again, and confirm a project remains after reload.
+4. Check the Vercel function logs and provider database logs if a step fails.
 
-- `https://planyourhomes.vercel.app/`
-- `https://planyourhomes.vercel.app/healthz`
+The local automated suite is run with `python -m unittest discover -s tests -t . -v`. This ZIP's tests exercise local SQLite and the database adapter shape; live Turso credentials are not included, so a real cloud smoke test is still required after you configure the database.
 
-The health endpoint should return JSON with `"status":"ok"` and `"database":"ok"`.
+## Remaining launch limitation
 
-## Important database limitation
-
-This patch fixes Vercel entrypoint/startup handling. It does **not** convert the app's SQL queries and migrations to MongoDB. The current code still uses SQLite, and Vercel's `/tmp` storage is temporary and can be different across function instances/cold starts. It is only enough to get the current app serving pages; do not treat it as persistent production storage. MongoDB Atlas will not be used until the application data layer is explicitly migrated to MongoDB.
+This fixes shared persistence for login sessions, accounts, and project data, but the app's uploaded project documents still use a local storage directory. On Vercel that directory is also under `/tmp`, which is temporary and not shared across function instances. Before accepting customer document uploads, configure shared private object storage (or deploy to a host with persistent shared storage). No code patch can create the cloud database or provide credentials for your account, and this ZIP cannot certify a zero-bug worldwide launch by itself.

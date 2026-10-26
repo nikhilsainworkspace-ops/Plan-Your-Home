@@ -1,3 +1,4 @@
 Jinja2==3.1.6
 reportlab==4.4.9
 gunicorn==23.0.0; sys_platform != "win32"
+turso-serverless==0.1.0
