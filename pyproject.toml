@@ -10,3 +10,7 @@ server = ["gunicorn==23.0.0; sys_platform != 'win32'"]
 
 [tool.unittest]
 start-directory = "tests"
+
+[tool.vercel]
+# Explicit WSGI entrypoint for Vercel Python Functions.
+entrypoint = "wsgi:app"
