@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f7f6f1">
+  <meta name="description" content="Plan your home, organise your design, estimate construction costs, and manage your project in one calm workspace.">
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/css/app.css">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+<a class="skip-link" href="#main">Skip to content</a>
+{% if request_id %}<span class="sr-only" aria-hidden="true">{{ request_id }}</span>{% endif %}
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="{% if user %}/app{% else %}/{% endif %}" aria-label="Plan Your Home home">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1F6F6B"/><path d="M7 15.5 16 8l9 7.5M10 14.5V24h12v-9.5M14 24v-5h4v5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      <span>Plan Your Home</span>
+    </a>
+    {% if user %}
+    <nav class="top-nav" aria-label="Account navigation">
+      <a href="/app">Workspace</a><a href="/projects">Projects</a><a href="/billing">Billing</a><a href="/settings">Settings</a>
+      {% if user.is_admin %}<a href="/admin">Admin</a>{% endif %}
+      <span class="nav-user">{{ user.full_name }}</span>
+      <form action="/logout" method="post" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn btn-quiet btn-small" type="submit">Sign out</button></form>
+    </nav>
+    {% else %}
+    <nav class="top-nav" aria-label="Main navigation">
+      <a href="/features">Features</a><a href="/how-it-works">How it works</a><a href="/pricing">Pricing</a><a href="/faq">FAQ</a>
+      <a href="/login" class="nav-login">Sign in</a><a class="btn btn-primary btn-small" href="/signup">Start free trial</a>
+    </nav>
+    {% endif %}
+  </div>
+</header>
+{% if user %}
+  {% set trial_end = user.trial_ends_at %}
+  {% if user.trial_status == 'trialing' and trial_end %}
+    <div class="trial-strip"><div class="container trial-strip-inner"><span>Your workspace is on a free trial until <strong>{{ trial_end[:10] }}</strong>. Planning figures are yours to edit.</span><a href="/billing">View billing options <span aria-hidden="true">→</span></a></div></div>
+  {% elif user.trial_status == 'expired' %}
+    <div class="trial-strip trial-strip-warning"><div class="container trial-strip-inner"><span>Your trial has ended. Your saved data is preserved; premium changes are paused.</span><a href="/billing">Review upgrade options <span aria-hidden="true">→</span></a></div></div>
+  {% endif %}
+{% endif %}
+<main id="main" class="main-content">
+  <div class="container main-container">
+    {% if notice %}<div class="notice notice-success" role="status">{{ notice }}</div>{% endif %}
+    {% if error %}<div class="notice notice-error" role="alert">{{ error }}</div>{% endif %}
+    {% block content %}{% endblock %}
+  </div>
+</main>
+<dialog class="confirm-dialog" id="confirm-dialog" aria-labelledby="confirm-dialog-title">
+  <div class="dialog-content"><p class="eyebrow">Please confirm</p><h2 id="confirm-dialog-title">Continue with this action?</h2><p data-confirm-message>Review this action before continuing.</p><div class="dialog-actions"><button type="button" class="btn btn-secondary" data-dialog-cancel>Cancel</button><button type="button" class="btn btn-danger" data-dialog-ok>Continue</button></div></div>
+</dialog>
+<footer class="site-footer">
+  <div class="container footer-inner"><div><a class="brand footer-brand" href="/"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#1F6F6B"/><path d="M7 15.5 16 8l9 7.5M10 14.5V24h12v-9.5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg><span>Plan Your Home</span></a><p class="footer-tagline">Plan smarter. Build better. Live beautifully.</p></div><nav class="footer-links" aria-label="Footer"><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="/cookies">Cookies</a><a href="/contact">Contact</a></nav><p class="footer-copy">© {{ app_name }} · Planning tools, not certified architectural advice.</p></div>
+</footer>
+<script src="/static/js/app.js" defer></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>
